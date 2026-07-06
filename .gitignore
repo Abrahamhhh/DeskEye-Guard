@@ -1,0 +1,36 @@
+# System files
+.DS_Store
+Thumbs.db
+
+# Editor files
+.vscode/
+.idea/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.db
+
+# Node
+node_modules/
+dist/
+build/
+
+# PlatformIO and ESP32
+.pio/
+.pioenvs/
+.piolibdeps/
+
+# Arduino build outputs
+*.hex
+*.bin
+*.elf
+*.map
+
+# Logs and generated captures
+*.log
+logs/
+captures/
+recordings/
