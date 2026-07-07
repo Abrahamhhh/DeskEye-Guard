@@ -1,0 +1,914 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeskEye Guard - 桌面行为感知与坐姿纠正系统</title>
+    <link href="https://cdn.jsdelivr.net/npm/font-awesome@4.7.0/css/font-awesome.min.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f5f7fa; }
+        
+        .login-container { display: flex; justify-content: center; align-items: center; height: 100vh; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); }
+        .login-box { background: white; padding: 40px; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.1); width: 400px; }
+        .login-box h2 { text-align: center; margin-bottom: 30px; color: #333; }
+        .form-group { margin-bottom: 20px; }
+        .form-group label { display: block; margin-bottom: 8px; color: #666; }
+        .form-group input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; font-size: 14px; }
+        .btn { width: 100%; padding: 12px; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; }
+        .btn-primary { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; }
+        .btn-primary:hover { opacity: 0.9; }
+        .btn-secondary { background: #f0f0f0; color: #333; }
+        .error { color: #e74c3c; font-size: 12px; margin-top: 5px; }
+        .success { color: #4caf50; font-size: 12px; margin-top: 5px; }
+        
+        .navbar { position: fixed; top: 0; left: 0; right: 0; z-index: 9999; background: white; box-shadow: 0 4px 20px rgba(0,0,0,0.15); padding: 12px 15px; display: flex; justify-content: space-between; align-items: center; overflow-x: auto; }
+        .navbar h1 { color: #667eea; font-size: 16px; margin: 0; white-space: nowrap; }
+        .navbar-links { display: flex !important; gap: 8px; align-items: center; white-space: nowrap; }
+        .navbar-links a { text-decoration: none; color: #333; padding: 6px 10px; border-radius: 4px; font-size: 13px; font-weight: 500; }
+        .navbar-links a:hover, .navbar-links a.active { background: #667eea; color: white; }
+        .navbar-links span { color: #666; font-size: 12px; padding-right: 5px; }
+        .navbar-links .logout-btn { background: #e74c3c; color: white; border-radius: 4px; font-weight: 600; padding: 6px 12px; margin-left: 10px; border: none; cursor: pointer; font-size: 13px; }
+        .content { padding: 30px; max-width: 1400px; margin: 80px auto 0; }
+        
+        .status-card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .status-card h3 { color: #333; margin-bottom: 20px; font-size: 18px; }
+        .status-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
+        .status-item { text-align: center; padding: 20px; border-radius: 8px; }
+        .status-item.normal { background: #e8f5e9; border-left: 4px solid #4caf50; }
+        .status-item.warning { background: #fff3e0; border-left: 4px solid #ff9800; }
+        .status-item.danger { background: #ffebee; border-left: 4px solid #f44336; }
+        .status-item.info { background: #e3f2fd; border-left: 4px solid #2196f3; }
+        .status-item .value { font-size: 28px; font-weight: bold; color: #333; }
+        .status-item .label { font-size: 14px; color: #666; margin-top: 5px; }
+        
+        .suggestion-box { background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 20px; border-radius: 8px; margin-top: 20px; }
+        .suggestion-box i { margin-right: 10px; }
+        
+        .chart-container { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); margin-bottom: 20px; }
+        .chart-container h3 { color: #333; margin-bottom: 20px; font-size: 18px; }
+        .chart-wrapper { height: 350px; }
+        
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 20px; }
+        .stat-card { background: white; border-radius: 12px; padding: 25px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        .stat-card .stat-value { font-size: 32px; font-weight: bold; color: #667eea; }
+        .stat-card .stat-label { font-size: 14px; color: #666; margin-top: 8px; }
+        .stat-card .stat-icon { font-size: 24px; margin-bottom: 10px; }
+        .stat-card.green .stat-value { color: #4caf50; }
+        .stat-card.orange .stat-value { color: #ff9800; }
+        .stat-card.red .stat-value { color: #f44336; }
+        
+        .table-container { background: white; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); overflow: hidden; }
+        .table-container table { width: 100%; border-collapse: collapse; }
+        .table-container th, .table-container td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
+        .table-container th { background: #f8f9fa; color: #333; font-weight: 600; }
+        .table-container tr:hover { background: #f8f9fa; }
+        .badge { padding: 4px 12px; border-radius: 20px; font-size: 12px; font-weight: 600; }
+        .badge.online { background: #e8f5e9; color: #4caf50; }
+        .badge.offline { background: #f5f5f5; color: #9e9e9e; }
+        .badge.normal { background: #e8f5e9; color: #4caf50; }
+        .badge.warning { background: #fff3e0; color: #ff9800; }
+        .badge.danger { background: #ffebee; color: #f44336; }
+        
+        .health-score { text-align: center; padding: 30px; }
+        .health-score .score { font-size: 64px; font-weight: bold; color: #667eea; }
+        .health-score .label { font-size: 16px; color: #666; margin-top: 10px; }
+        .health-score .summary { font-size: 14px; color: #888; margin-top: 15px; }
+        
+        .refresh-btn { background: #667eea; color: white; border: none; padding: 10px 20px; border-radius: 6px; cursor: pointer; margin-bottom: 20px; }
+        .refresh-btn:hover { opacity: 0.9; }
+        
+        @media (max-width: 768px) {
+            .navbar-links { display: none; }
+            .status-grid { grid-template-columns: 1fr; }
+            .stats-grid { grid-template-columns: 1fr; }
+            .login-box { width: 90%; }
+        }
+    </style>
+</head>
+<body>
+    <div id="app">
+        <div v-if="currentPage === 'login' || currentPage === 'register'" class="login-container">
+            <div v-if="currentPage === 'login'" class="login-box">
+                <h2><i class="fa fa-eye"></i> DeskEye Guard</h2>
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input v-model="loginForm.username" type="text" placeholder="请输入用户名">
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input v-model="loginForm.password" type="password" placeholder="请输入密码">
+                </div>
+                <div v-if="loginError" class="error">{{ loginError }}</div>
+                <button class="btn btn-primary" @click="login">登录</button>
+                <button class="btn btn-secondary" @click="currentPage = 'register'" style="margin-top: 10px;">注册</button>
+            </div>
+            
+            <div v-else class="login-box">
+                <h2><i class="fa fa-user-plus"></i> 注册新用户</h2>
+                <div class="form-group">
+                    <label>用户名</label>
+                    <input v-model="registerForm.username" type="text" placeholder="请输入用户名">
+                </div>
+                <div class="form-group">
+                    <label>密码</label>
+                    <input v-model="registerForm.password" type="password" placeholder="请输入密码">
+                </div>
+                <div class="form-group">
+                    <label>确认密码</label>
+                    <input v-model="registerForm.confirmPassword" type="password" placeholder="请再次输入密码">
+                </div>
+                <div v-if="registerError" class="error">{{ registerError }}</div>
+                <button class="btn btn-primary" @click="handleRegister">注册</button>
+                <button class="btn btn-secondary" @click="currentPage = 'login'" style="margin-top: 10px;">返回登录</button>
+            </div>
+        </div>
+        
+        <div v-else>
+            <nav class="navbar">
+                <h1><i class="fa fa-eye"></i> DeskEye Guard</h1>
+                <div class="navbar-links">
+                    <a :class="{active: currentPage === 'monitor'}" @click="currentPage = 'monitor'">实时监测</a>
+                    <a :class="{active: currentPage === 'posture'}" @click="currentPage = 'posture'">坐姿看板</a>
+                    <a :class="{active: currentPage === 'screen'}" @click="currentPage = 'screen'">屏幕休息</a>
+                    <a v-if="userRole === 'admin'" :class="{active: currentPage === 'admin'}" @click="currentPage = 'admin'">设备管理</a>
+                    <a :class="{active: currentPage === 'changepwd'}" @click="currentPage = 'changepwd'"><i class="fa fa-key"></i> 更改密码</a>
+                    <span>{{ userName }}</span>
+                    <a @click="logout" class="logout-btn"><i class="fa fa-sign-out"></i> 退出登录</a>
+                </div>
+            </nav>
+            
+            <div class="content">
+                <div v-if="currentPage === 'monitor'">
+                    <div class="status-card">
+                        <h3><i class="fa fa-heartbeat"></i> 当前状态</h3>
+                        <div class="status-grid">
+                            <div :class="getPostureClass(currentStatus.posture_status)" class="status-item">
+                                <div class="value">{{ currentStatus.posture_description }}</div>
+                                <div class="label">当前坐姿</div>
+                            </div>
+                            <div :class="getScreenClass(currentStatus.screen_status)" class="status-item">
+                                <div class="value">{{ currentStatus.screen_description }}</div>
+                                <div class="label">屏幕状态</div>
+                            </div>
+                            <div :class="getPhoneClass(currentStatus.phone_status)" class="status-item">
+                                <div class="value">{{ currentStatus.phone_description }}</div>
+                                <div class="label">手机状态</div>
+                            </div>
+                            <div class="status-item info">
+                                <div class="value">{{ currentStatus.continuous_usage_minutes }}<span style="font-size: 14px;">分钟</span></div>
+                                <div class="label">连续使用</div>
+                            </div>
+                            <div :class="currentStatus.today_alerts_count > 5 ? 'status-item danger' : 'status-item info'" class="status-item">
+                                <div class="value">{{ currentStatus.today_alerts_count }}<span style="font-size: 14px;">次</span></div>
+                                <div class="label">今日提醒</div>
+                            </div>
+                        </div>
+                        <div class="suggestion-box">
+                            <i class="fa fa-lightbulb-o"></i> {{ currentStatus.suggestion }}
+                        </div>
+                        <div style="text-align: right; margin-top: 10px; color: #999; font-size: 12px;">
+                            更新时间: {{ formatTime(currentStatus.last_update) }}
+                        </div>
+                    </div>
+                    
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa fa-smile-o" style="color: #4caf50;"></i></div>
+                            <div class="stat-value">{{ todayStats.normal_minutes }}</div>
+                            <div class="stat-label">今日正常坐姿(分钟)</div>
+                        </div>
+                        <div class="stat-card orange">
+                            <div class="stat-icon"><i class="fa fa-frown-o" style="color: #ff9800;"></i></div>
+                            <div class="stat-value">{{ todayStats.bad_posture_minutes }}</div>
+                            <div class="stat-label">今日不良坐姿(分钟)</div>
+                        </div>
+                        <div class="stat-card red">
+                            <div class="stat-icon"><i class="fa fa-arrow-down" style="color: #f44336;"></i></div>
+                            <div class="stat-value">{{ todayStats.head_down_count }}</div>
+                            <div class="stat-label">今日低头次数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa fa-heart" style="color: #667eea;"></i></div>
+                            <div class="stat-value">{{ todayStats.health_score }}</div>
+                            <div class="stat-label">今日健康评分</div>
+                        </div>
+                    </div>
+                    <button class="refresh-btn" @click="refreshData"><i class="fa fa-refresh"></i> 刷新数据</button>
+                </div>
+                
+                <div v-if="currentPage === 'posture'">
+                    <div class="health-score">
+                        <div class="score">{{ todayStats.health_score }}</div>
+                        <div class="label">今日健康评分</div>
+                        <div class="summary">{{ todayStats.summary }}</div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3><i class="fa fa-line-chart"></i> 一周坐姿趋势</h3>
+                        <div id="trendChart" class="chart-wrapper"></div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3><i class="fa fa-pie-chart"></i> 今日坐姿分布</h3>
+                        <div id="pieChart" class="chart-wrapper"></div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3><i class="fa fa-bar-chart"></i> 不良姿态统计</h3>
+                        <div id="barChart" class="chart-wrapper"></div>
+                    </div>
+                </div>
+                
+                <div v-if="currentPage === 'screen'">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa fa-desktop" style="color: #2196f3;"></i></div>
+                            <div class="stat-value">{{ todayStats.screen_minutes }}<span style="font-size: 18px;">分钟</span></div>
+                            <div class="stat-label">今日屏幕使用时长</div>
+                        </div>
+                        <div class="stat-card orange">
+                            <div class="stat-icon"><i class="fa fa-clock-o" style="color: #ff9800;"></i></div>
+                            <div class="stat-value">40<span style="font-size: 18px;">分钟</span></div>
+                            <div class="stat-label">最长连续使用</div>
+                        </div>
+                        <div class="stat-card green">
+                            <div class="stat-icon"><i class="fa fa-coffee" style="color: #4caf50;"></i></div>
+                            <div class="stat-value">{{ todayStats.break_count }}</div>
+                            <div class="stat-label">今日休息次数</div>
+                        </div>
+                        <div class="stat-card red">
+                            <div class="stat-icon"><i class="fa fa-bell" style="color: #f44336;"></i></div>
+                            <div class="stat-value">{{ todayStats.today_alerts_count }}</div>
+                            <div class="stat-label">久坐提醒次数</div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3><i class="fa fa-area-chart"></i> 一周屏幕使用趋势</h3>
+                        <div id="screenChart" class="chart-wrapper"></div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3><i class="fa fa-list"></i> 今日提醒记录</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr><th>时间</th><th>类型</th><th>内容</th><th>状态</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="alert in alerts" :key="alert.id">
+                                        <td>{{ formatTime(alert.created_at) }}</td>
+                                        <td><span :class="getAlertBadgeClass(alert.alert_type)" class="badge">{{ getAlertTypeLabel(alert.alert_type) }}</span></td>
+                                        <td>{{ alert.message }}</td>
+                                        <td><span :class="alert.status === 'pending' ? 'badge warning' : 'badge normal'" class="badge">{{ alert.status === 'pending' ? '未处理' : '已处理' }}</span></td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div v-if="currentPage === 'changepwd'">
+                    <div class="login-container" style="height: auto; padding-top: 40px;">
+                        <div class="login-box">
+                            <h2><i class="fa fa-key"></i> 更改密码</h2>
+                            <div class="form-group">
+                                <label>当前密码</label>
+                                <input v-model="changePwdForm.currentPassword" type="password" placeholder="请输入当前密码">
+                            </div>
+                            <div class="form-group">
+                                <label>新密码</label>
+                                <input v-model="changePwdForm.newPassword" type="password" placeholder="请输入新密码">
+                            </div>
+                            <div class="form-group">
+                                <label>确认新密码</label>
+                                <input v-model="changePwdForm.confirmPassword" type="password" placeholder="请再次输入新密码">
+                            </div>
+                            <div v-if="changePwdError" class="error">{{ changePwdError }}</div>
+                            <div v-if="changePwdSuccess" class="success">{{ changePwdSuccess }}</div>
+                            <button class="btn btn-primary" @click="handleChangePassword">确认修改</button>
+                            <button class="btn btn-secondary" @click="currentPage = 'monitor'" style="margin-top: 10px;">返回</button>
+                        </div>
+                    </div>
+                </div>
+                
+                <div v-if="currentPage === 'admin'">
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa fa-users" style="color: #667eea;"></i></div>
+                            <div class="stat-value">{{ systemStats.total_users }}</div>
+                            <div class="stat-label">总用户数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa fa-server" style="color: #2196f3;"></i></div>
+                            <div class="stat-value">{{ systemStats.total_devices }}</div>
+                            <div class="stat-label">总设备数</div>
+                        </div>
+                        <div class="stat-card green">
+                            <div class="stat-icon"><i class="fa fa-wifi" style="color: #4caf50;"></i></div>
+                            <div class="stat-value">{{ systemStats.online_devices }}</div>
+                            <div class="stat-label">在线设备</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-icon"><i class="fa fa-database" style="color: #ff9800;"></i></div>
+                            <div class="stat-value">{{ systemStats.total_records }}</div>
+                            <div class="stat-label">识别记录总数</div>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3><i class="fa fa-table"></i> 设备列表</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr><th>设备名称</th><th>绑定用户</th><th>状态</th><th>最近上传</th><th>最近识别</th><th>识别失败</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="device in devices" :key="device.id">
+                                        <td>{{ device.device_name }}</td>
+                                        <td>{{ device.username }}</td>
+                                        <td><span :class="device.status === 'online' ? 'badge online' : 'badge offline'" class="badge">{{ device.status === 'online' ? '在线' : '离线' }}</span></td>
+                                        <td>{{ formatTime(device.last_seen) }}</td>
+                                        <td><span :class="getPostureBadgeClass(device.last_posture)" class="badge">{{ getPostureLabel(device.last_posture) }}</span></td>
+                                        <td>{{ device.failed_recognition_count }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <div class="chart-container">
+                        <h3><i class="fa fa-bell"></i> 所有提醒记录</h3>
+                        <div class="table-container">
+                            <table>
+                                <thead>
+                                    <tr><th>用户</th><th>类型</th><th>内容</th><th>状态</th><th>时间</th></tr>
+                                </thead>
+                                <tbody>
+                                    <tr v-for="alert in allAlerts" :key="alert.id">
+                                        <td>{{ alert.username }}</td>
+                                        <td><span :class="getAlertBadgeClass(alert.alert_type)" class="badge">{{ getAlertTypeLabel(alert.alert_type) }}</span></td>
+                                        <td>{{ alert.message }}</td>
+                                        <td><span :class="alert.status === 'pending' ? 'badge warning' : 'badge normal'" class="badge">{{ alert.status === 'pending' ? '未处理' : '已处理' }}</span></td>
+                                        <td>{{ formatTime(alert.created_at) }}</td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script type="module">
+        import { createApp, ref, onMounted, watch, nextTick } from 'vue/dist/vue.esm-bundler.js';
+        import * as echarts from 'echarts';
+        import { loginApi, registerApi, meApi, changePasswordApi, todayStatsApi, recentEventsApi, postureTrendApi, adminDevicesApi, adminEventsApi, adminSummaryApi } from '/src/api.js';
+        
+        createApp({
+            setup() {
+                const currentPage = ref('login');
+                const loginForm = ref({ username: '', password: '' });
+                const loginError = ref('');
+                const registerForm = ref({ username: '', password: '', confirmPassword: '' });
+                const registerError = ref('');
+                const changePwdForm = ref({ currentPassword: '', newPassword: '', confirmPassword: '' });
+                const changePwdError = ref('');
+                const changePwdSuccess = ref('');
+                const token = ref('');
+                const userName = ref('');
+                const userRole = ref('user');
+                
+                const currentStatus = ref({
+                    posture_status: 'unknown',
+                    posture_description: '未知',
+                    screen_status: 'unknown',
+                    screen_description: '未知',
+                    phone_status: 'unknown',
+                    phone_description: '未知',
+                    continuous_usage_minutes: 0,
+                    today_alerts_count: 0,
+                    suggestion: '',
+                    last_update: new Date()
+                });
+                
+                const todayStats = ref({
+                    normal_minutes: 0,
+                    bad_posture_minutes: 0,
+                    head_down_count: 0,
+                    lying_on_desk_count: 0,
+                    tilt_head_count: 0,
+                    too_close_count: 0,
+                    phone_detected_count: 0,
+                    screen_minutes: 0,
+                    today_alerts_count: 0,
+                    health_score: 0,
+                    summary: ''
+                });
+                
+                const alerts = ref([]);
+                const postureTrend = ref([]);
+                const screenTime = ref([]);
+                const devices = ref([]);
+                const allAlerts = ref([]);
+                const systemStats = ref({
+                    total_users: 0,
+                    total_devices: 0,
+                    online_devices: 0,
+                    total_records: 0,
+                    today_records: 0
+                });
+                
+                const login = async () => {
+                    try {
+                        const response = await loginApi(loginForm.value);
+                        token.value = response.access_token;
+                        localStorage.setItem('deskeye_token', token.value);
+                        userName.value = loginForm.value.username;
+                        await loadUserInfo();
+                        currentPage.value = 'monitor';
+                        loginError.value = '';
+                        startAutoRefresh();
+                    } catch (error) {
+                        loginError.value = '用户名或密码错误';
+                    }
+                };
+                
+                const handleRegister = async () => {
+                    registerError.value = '';
+                    if (!registerForm.value.username.trim()) {
+                        registerError.value = '请输入用户名';
+                        return;
+                    }
+                    if (!registerForm.value.password) {
+                        registerError.value = '请输入密码';
+                        return;
+                    }
+                    if (registerForm.value.password !== registerForm.value.confirmPassword) {
+                        registerError.value = '两次输入的密码不一致';
+                        return;
+                    }
+                    if (registerForm.value.password.length < 6) {
+                        registerError.value = '密码长度至少为6位';
+                        return;
+                    }
+                    try {
+                        await registerApi({
+                            username: registerForm.value.username,
+                            password: registerForm.value.password
+                        });
+                        loginForm.value.username = registerForm.value.username;
+                        loginForm.value.password = '';
+                        registerForm.value = { username: '', password: '', confirmPassword: '' };
+                        currentPage.value = 'login';
+                        loginError.value = '注册成功，请登录';
+                    } catch (error) {
+                        registerError.value = error.message || '注册失败，用户名可能已存在';
+                    }
+                };
+                
+                const handleChangePassword = async () => {
+                    changePwdError.value = '';
+                    changePwdSuccess.value = '';
+                    if (!changePwdForm.value.currentPassword) {
+                        changePwdError.value = '请输入当前密码';
+                        return;
+                    }
+                    if (!changePwdForm.value.newPassword) {
+                        changePwdError.value = '请输入新密码';
+                        return;
+                    }
+                    if (changePwdForm.value.newPassword !== changePwdForm.value.confirmPassword) {
+                        changePwdError.value = '两次输入的新密码不一致';
+                        return;
+                    }
+                    if (changePwdForm.value.newPassword.length < 6) {
+                        changePwdError.value = '新密码长度至少为6位';
+                        return;
+                    }
+                    try {
+                        await changePasswordApi(token.value, {
+                            current_password: changePwdForm.value.currentPassword,
+                            new_password: changePwdForm.value.newPassword
+                        });
+                        changePwdSuccess.value = '密码修改成功！';
+                        changePwdForm.value = { currentPassword: '', newPassword: '', confirmPassword: '' };
+                    } catch (error) {
+                        changePwdError.value = error.message || '密码修改失败';
+                    }
+                };
+                
+                const loadUserInfo = async () => {
+                    try {
+                        const response = await meApi(token.value);
+                        userRole.value = response.role;
+                        userName.value = response.username;
+                    } catch (error) {
+                        console.error('Failed to load user info:', error);
+                    }
+                };
+                
+                const logout = () => {
+                    token.value = '';
+                    localStorage.removeItem('deskeye_token');
+                    userName.value = '';
+                    userRole.value = 'user';
+                    currentPage.value = 'login';
+                    loginForm.value = { username: '', password: '' };
+                    loginError.value = '';
+                    currentStatus.value = {
+                        posture_status: 'unknown',
+                        posture_description: '未知',
+                        screen_status: 'unknown',
+                        screen_description: '未知',
+                        phone_status: 'unknown',
+                        phone_description: '未知',
+                        continuous_usage_minutes: 0,
+                        today_alerts_count: 0,
+                        suggestion: '',
+                        last_update: new Date()
+                    };
+                    todayStats.value = {
+                        normal_minutes: 0,
+                        bad_posture_minutes: 0,
+                        head_down_count: 0,
+                        lying_on_desk_count: 0,
+                        tilt_head_count: 0,
+                        too_close_count: 0,
+                        phone_detected_count: 0,
+                        screen_minutes: 0,
+                        today_alerts_count: 0,
+                        health_score: 0,
+                        summary: ''
+                    };
+                    alerts.value = [];
+                    postureTrend.value = [];
+                    screenTime.value = [];
+                    devices.value = [];
+                    allAlerts.value = [];
+                    systemStats.value = {
+                        total_users: 0,
+                        total_devices: 0,
+                        online_devices: 0,
+                        total_records: 0,
+                        today_records: 0
+                    };
+                    stopAutoRefresh();
+                };
+                
+                const getCurrentStatus = async () => {
+                    try {
+                        const [events, stats] = await Promise.all([recentEventsApi(token.value, 1), todayStatsApi(token.value)]);
+                        const latest = events[0];
+                        const posture = latest?.alert_type || 'away';
+                        const labels = { normal: '正常', away: '离座', head_down: '低头', lean_forward: '身体前倾', head_tilt: '头部偏斜', long_sitting: '久坐', phone_detected: '正常' };
+                        currentStatus.value = {
+                            posture_status: posture,
+                            posture_description: labels[posture] || '未知',
+                            screen_status: posture === 'away' ? 'off' : 'on',
+                            screen_description: posture === 'away' ? '未使用' : '使用中',
+                            phone_status: posture === 'phone_detected' ? 'detected' : 'normal',
+                            phone_description: posture === 'phone_detected' ? '检测到手机' : '未检测到',
+                            continuous_usage_minutes: stats.screen_minutes,
+                            today_alerts_count: stats.today_alerts_count,
+                            suggestion: latest?.message || '等待设备上报检测数据',
+                            last_update: latest?.created_at || new Date()
+                        };
+                    } catch (error) {
+                        console.error('Failed to get current status:', error);
+                    }
+                };
+                
+                const getTodayStats = async () => {
+                    try {
+                        todayStats.value = await todayStatsApi(token.value);
+                    } catch (error) {
+                        console.error('Failed to get today stats:', error);
+                    }
+                };
+                
+                const getAlerts = async () => {
+                    try {
+                        alerts.value = await recentEventsApi(token.value, 20);
+                    } catch (error) {
+                        console.error('Failed to get alerts:', error);
+                    }
+                };
+                
+                const getPostureTrend = async () => {
+                    try {
+                        postureTrend.value = await postureTrendApi(token.value, 7);
+                    } catch (error) {
+                        console.error('Failed to get posture trend:', error);
+                    }
+                };
+                
+                const getScreenTime = async () => {
+                    try {
+                        screenTime.value = await postureTrendApi(token.value, 7);
+                    } catch (error) {
+                        console.error('Failed to get screen time:', error);
+                    }
+                };
+                
+                const getAdminDevices = async () => {
+                    try {
+                        devices.value = await adminDevicesApi(token.value);
+                    } catch (error) {
+                        console.error('Failed to get devices:', error);
+                    }
+                };
+                
+                const getAllAlerts = async () => {
+                    try {
+                        allAlerts.value = await adminEventsApi(token.value);
+                    } catch (error) {
+                        console.error('Failed to get all alerts:', error);
+                    }
+                };
+                
+                const getSystemSummary = async () => {
+                    try {
+                        systemStats.value = await adminSummaryApi(token.value);
+                    } catch (error) {
+                        console.error('Failed to get system summary:', error);
+                    }
+                };
+                
+                const refreshData = async () => {
+                    await getCurrentStatus();
+                    await getTodayStats();
+                    await getAlerts();
+                    await getPostureTrend();
+                    await getScreenTime();
+                    if (userRole.value === 'admin') {
+                        await getAdminDevices();
+                        await getAllAlerts();
+                        await getSystemSummary();
+                    }
+                    nextTick(() => {
+                        setTimeout(() => {
+                            renderCharts();
+                        }, 100);
+                    });
+                };
+                
+                let refreshInterval = null;
+                
+                const startAutoRefresh = () => {
+                    refreshInterval = setInterval(() => {
+                        getCurrentStatus();
+                        getTodayStats();
+                    }, 5000);
+                };
+                
+                const stopAutoRefresh = () => {
+                    if (refreshInterval) {
+                        clearInterval(refreshInterval);
+                        refreshInterval = null;
+                    }
+                };
+                
+                const formatTime = (dateStr) => {
+                    if (!dateStr) return '-';
+                    const date = new Date(dateStr);
+                    return date.toLocaleString('zh-CN');
+                };
+                
+                const getPostureClass = (status) => {
+                    const classes = {
+                        'normal': 'status-item normal',
+                        'head_down': 'status-item warning',
+                        'lean_forward': 'status-item warning',
+                        'head_tilt': 'status-item warning',
+                        'long_sitting': 'status-item danger',
+                        'phone_detected': 'status-item warning',
+                        'too_close': 'status-item warning',
+                        'lying_on_desk': 'status-item danger',
+                        'away': 'status-item info',
+                        'unknown': 'status-item info'
+                    };
+                    return classes[status] || 'status-item info';
+                };
+                
+                const getScreenClass = (status) => {
+                    return status === 'on' ? 'status-item normal' : 'status-item info';
+                };
+                
+                const getPhoneClass = (status) => {
+                    return status === 'detected' ? 'status-item warning' : 'status-item normal';
+                };
+                
+                const getAlertBadgeClass = (type) => {
+                    const classes = {
+                        'head_down': 'badge warning',
+                        'lean_forward': 'badge warning',
+                        'head_tilt': 'badge warning',
+                        'too_close': 'badge warning',
+                        'tilt_head': 'badge warning',
+                        'lying_on_desk': 'badge danger',
+                        'long_sitting': 'badge info'
+                    };
+                    return classes[type] || 'badge info';
+                };
+                
+                const getAlertTypeLabel = (type) => {
+                    const labels = {
+                        'head_down': '低头提醒',
+                        'lean_forward': '前倾提醒',
+                        'head_tilt': '偏头提醒',
+                        'phone_detected': '手机提醒',
+                        'too_close': '离屏过近',
+                        'tilt_head': '歪头提醒',
+                        'lying_on_desk': '趴桌提醒',
+                        'long_sitting': '久坐提醒'
+                    };
+                    return labels[type] || '其他';
+                };
+                
+                const getPostureBadgeClass = (status) => {
+                    if (!status) return 'badge info';
+                    const classes = {
+                        'normal': 'badge normal',
+                        'head_down': 'badge warning',
+                        'lean_forward': 'badge warning',
+                        'head_tilt': 'badge warning',
+                        'long_sitting': 'badge danger',
+                        'too_close': 'badge warning',
+                        'lying_on_desk': 'badge danger',
+                        'away': 'badge info',
+                        'unknown': 'badge info'
+                    };
+                    return classes[status] || 'badge info';
+                };
+                
+                const getPostureLabel = (status) => {
+                    if (!status) return '-';
+                    const labels = {
+                        'normal': '正常',
+                        'head_down': '低头',
+                        'lean_forward': '身体前倾',
+                        'head_tilt': '头部偏斜',
+                        'long_sitting': '久坐',
+                        'too_close': '离屏过近',
+                        'lying_on_desk': '趴桌',
+                        'away': '离座',
+                        'unknown': '未知'
+                    };
+                    return labels[status] || '未知';
+                };
+                
+                let trendChartInstance = null;
+                let pieChartInstance = null;
+                let barChartInstance = null;
+                let screenChartInstance = null;
+                
+                const renderCharts = () => {
+                    if (currentPage.value === 'posture') {
+                        renderTrendChart();
+                        renderPieChart();
+                        renderBarChart();
+                    } else if (currentPage.value === 'screen') {
+                        renderScreenChart();
+                    }
+                };
+                
+                const renderTrendChart = () => {
+                    const el = document.getElementById('trendChart');
+                    if (!el || postureTrend.value.length === 0) return;
+                    
+                    if (!trendChartInstance) {
+                        trendChartInstance = echarts.init(el);
+                    }
+                    
+                    const dates = postureTrend.value.map(d => d.date);
+                    const normal = postureTrend.value.map(d => d.normal_minutes);
+                    const bad = postureTrend.value.map(d => d.bad_posture_minutes);
+                    const health = postureTrend.value.map(d => d.health_score);
+                    
+                    trendChartInstance.setOption({
+                        tooltip: { trigger: 'axis' },
+                        legend: { data: ['正常坐姿', '不良坐姿', '健康评分'] },
+                        grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                        xAxis: { type: 'category', data: dates },
+                        yAxis: [{ type: 'value', name: '分钟' }, { type: 'value', name: '评分' }],
+                        series: [
+                            { name: '正常坐姿', type: 'bar', data: normal, itemStyle: { color: '#4caf50' } },
+                            { name: '不良坐姿', type: 'bar', data: bad, itemStyle: { color: '#ff9800' } },
+                            { name: '健康评分', type: 'line', yAxisIndex: 1, data: health, itemStyle: { color: '#667eea' } }
+                        ]
+                    });
+                };
+                
+                const renderPieChart = () => {
+                    const el = document.getElementById('pieChart');
+                    if (!el) return;
+                    
+                    if (!pieChartInstance) {
+                        pieChartInstance = echarts.init(el);
+                    }
+                    
+                    const total = todayStats.value.normal_minutes + todayStats.value.bad_posture_minutes;
+                    
+                    pieChartInstance.setOption({
+                        tooltip: { trigger: 'item', formatter: '{b}: {c}分钟 ({d}%)' },
+                        legend: { orient: 'horizontal', bottom: '0%' },
+                        series: [{
+                            type: 'pie',
+                            radius: ['40%', '70%'],
+                            avoidLabelOverlap: false,
+                            label: { show: true, formatter: '{b}\n{c}分钟' },
+                            data: [
+                                { value: todayStats.value.normal_minutes, name: '正常坐姿', itemStyle: { color: '#4caf50' } },
+                                { value: todayStats.value.bad_posture_minutes, name: '不良坐姿', itemStyle: { color: '#ff9800' } }
+                            ]
+                        }]
+                    });
+                };
+                
+                const renderBarChart = () => {
+                    const el = document.getElementById('barChart');
+                    if (!el) return;
+                    
+                    if (!barChartInstance) {
+                        barChartInstance = echarts.init(el);
+                    }
+                    
+                    barChartInstance.setOption({
+                        tooltip: { trigger: 'axis' },
+                        grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                        xAxis: { type: 'category', data: ['低头', '趴桌', '歪头', '离屏过近'] },
+                        yAxis: { type: 'value', name: '次数' },
+                        series: [{
+                            type: 'bar',
+                            data: [
+                                { value: todayStats.value.head_down_count, itemStyle: { color: '#ff9800' } },
+                                { value: todayStats.value.lying_on_desk_count, itemStyle: { color: '#f44336' } },
+                                { value: todayStats.value.tilt_head_count, itemStyle: { color: '#ff9800' } },
+                                { value: todayStats.value.too_close_count, itemStyle: { color: '#ff9800' } }
+                            ]
+                        }]
+                    });
+                };
+                
+                const renderScreenChart = () => {
+                    const el = document.getElementById('screenChart');
+                    if (!el || screenTime.value.length === 0) return;
+                    
+                    if (!screenChartInstance) {
+                        screenChartInstance = echarts.init(el);
+                    }
+                    
+                    const dates = screenTime.value.map(d => d.date);
+                    const minutes = screenTime.value.map(d => d.screen_minutes);
+                    const breaks = screenTime.value.map(d => d.break_count);
+                    
+                    screenChartInstance.setOption({
+                        tooltip: { trigger: 'axis' },
+                        legend: { data: ['屏幕使用', '休息次数'] },
+                        grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
+                        xAxis: { type: 'category', data: dates },
+                        yAxis: [{ type: 'value', name: '分钟' }, { type: 'value', name: '次数' }],
+                        series: [
+                            { name: '屏幕使用', type: 'line', data: minutes, itemStyle: { color: '#2196f3' } },
+                            { name: '休息次数', type: 'bar', yAxisIndex: 1, data: breaks, itemStyle: { color: '#4caf50' } }
+                        ]
+                    });
+                };
+                
+                watch(currentPage, async (newPage) => {
+                    if (newPage === 'monitor' || newPage === 'posture' || newPage === 'screen' || newPage === 'admin') {
+                        await refreshData();
+                    }
+                });
+                
+                onMounted(() => {
+                    const savedToken = localStorage.getItem('deskeye_token');
+                    if (savedToken) {
+                        token.value = savedToken;
+                        loadUserInfo().then(() => {
+                            currentPage.value = 'monitor';
+                            startAutoRefresh();
+                            refreshData();
+                        }).catch(() => {
+                            localStorage.removeItem('deskeye_token');
+                        });
+                    }
+                });
+                
+                return {
+                    currentPage, loginForm, loginError, registerForm, registerError, 
+                    changePwdForm, changePwdError, changePwdSuccess, userName, userRole,
+                    currentStatus, todayStats, alerts, postureTrend, screenTime,
+                    devices, allAlerts, systemStats,
+                    login, handleRegister, handleChangePassword, logout, refreshData, formatTime,
+                    getPostureClass, getScreenClass, getPhoneClass,
+                    getAlertBadgeClass, getAlertTypeLabel, getPostureBadgeClass, getPostureLabel
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
